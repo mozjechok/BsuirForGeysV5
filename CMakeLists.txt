@@ -7,3 +7,7 @@ project ("BsuirForGeysV5")
 
 # Включите подпроекты.
 add_subdirectory ("IGPM2")
+add_subdirectory ("IGPM3")
+add_subdirectory ("IGPM4")
+add_subdirectory ("IGPM5")
+add_subdirectory ("IGPM6")
