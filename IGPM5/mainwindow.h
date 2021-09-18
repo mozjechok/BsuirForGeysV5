@@ -11,6 +11,7 @@
 #include <string>
 #include <unordered_set>
 #include <algorithm>
+#include <limits>
 
 using namespace QtCharts;
 
@@ -33,7 +34,7 @@ private:
     Ui::MainWindow* ui;
 
     const int a = 4, b = 20, m = 80;
-    const double e = 0.000001;
+    const double e = std::numeric_limits<double>::epsilon();
 
     std::unordered_set<double> results;
 };
