@@ -120,7 +120,7 @@
       <item>
        <widget class="QChartView" name="yChartView">
         <property name="renderHints">
-         <set>QPainter::Antialiasing|QPainter::TextAntialiasing</set>
+         <set>QPainter::Antialiasing|QPainter::LosslessImageRendering|QPainter::SmoothPixmapTransform|QPainter::TextAntialiasing|QPainter::VerticalSubpixelPositioning</set>
         </property>
        </widget>
       </item>
