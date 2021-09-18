@@ -6,9 +6,10 @@
 #include <QValidator>
 #include <QtCharts/QChart>
 #include <QtCharts/QChartView>
+#include <QScatterSeries>
 
 #include <string>
-#include <set>
+#include <unordered_set>
 #include <algorithm>
 
 using namespace QtCharts;
@@ -22,18 +23,18 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    MainWindow(QWidget *parent = nullptr);
+    MainWindow(QWidget* parent = nullptr);
     ~MainWindow();
 
 public slots:
     void computeButton();
 
 private:
-    Ui::MainWindow *ui;
+    Ui::MainWindow* ui;
 
-    const int a = 4, b = 8, m = 30;
-    const double e = 0.0001;
+    const int a = 4, b = 20, m = 80;
+    const double e = 0.000001;
 
-    std::set<double> results;
+    std::unordered_set<double> results;
 };
 #endif // MAINWINDOW_H

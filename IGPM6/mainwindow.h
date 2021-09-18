@@ -10,6 +10,8 @@
 #include <string>
 #include <set>
 #include <algorithm>
+#include <iostream>
+#include <iomanip>
 
 using namespace QtCharts;
 
@@ -25,15 +27,17 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-public slots:
-    void computeButton();
+    template<class T>
+    void fillDeltaChart();
+
+
+protected slots:
+    void nxChanged(const QString& nxText);
 
 private:
     Ui::MainWindow *ui;
 
-    const int a = 4, b = 8, m = 30;
+    const int a = 2, b = 4, m = 30;
     const double e = 0.0001;
-
-    std::set<double> results;
 };
 #endif // MAINWINDOW_H

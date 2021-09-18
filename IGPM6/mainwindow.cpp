@@ -4,81 +4,155 @@
 #include <QtCharts/QChart>
 #include <QtCharts/QLineSeries>
 
-template<class T, class F>
-T calculateMG(T x0, T h, T e, int& it, F func)
+template<class T, class F, class F1>
+void calculateM5(T a, T b, int nx, int np, std::vector<T> &y, F FPR, F1 OUT)
 {
-    T x1 = x0 - h, x2 = x0, x3 = x0 + h;
-    T y1 = func(x1), y2 = func(x2), y3 = func(x3);
-    T z1, z2, r, d, p, q, D, zm1, zm2, zm;
+    std::vector<T> fp1(y.size()), fp2(y.size()), f1(y.size()), f2(y.size()),
+        yp1(y.size()), yp2(y.size()), y1(y.size());
 
-    it = 0;
-    do
+    T h = (b - a) / nx;
+    T x = a;
+    int i;
+
+    if (np == 0)
+        np = nx + 1;
+
+    OUT(x, y);
+
+    for (int n = 0; n < nx; n++)
     {
-        it++;
+        FPR(x, y, fp1);
+        for (i = 0; i < y.size(); i++)
+            yp1[i] = y[i] + h * fp1[i] / 2;
 
-        z1 = x1 - x3;
-        z2 = x2 - x3;
+        FPR(x + h / 2, yp1, fp2);
+        for (i = 0; i < y.size(); i++)
+            yp2[i] = y[i] + h * fp2[i] / 2;
 
-        r = y3;
-        d = z1 * z2 * (z1 - z2);
-        p = ((y1 - y3) * z2 - (y2 - y3) * z1) / d;
-        q = -((y1 - y3) * z2 * z2 - (y2 - y3) * z1 * z1) / d;
+        FPR(x + h / 2, yp2, f1);
+        for (i = 0; i < y.size(); i++)
+            y1[i] = y[i] + h * f1[i];
 
-        if (q * q - 4 * p * r < 0)
-            throw std::exception();
+        FPR(x + h, y1, f2);
+        for (i = 0; i < y.size(); i++)
+            y[i] += h * (fp1[i] + 2 * fp2[i] + 2 * f1[i] + f2[i]) / 6;
 
-        D = sqrt(q * q - 4 * p * r);
-        zm1 = (-q + D) / (2 * p);
-        zm2 = (-q - D) / (2 * p);
-        
-        if (abs(zm1) > abs(zm2))
-        {
-            zm = zm2;
-        }
-        else
-        {
-            zm = zm1;
-        }
+        x += h;
 
-        x1 = x2;
-        x2 = x3;
-        y1 = y2;
-        y2 = y3;
+        if (n % np == 1)
+            OUT(x, y);
+    }
 
-        x3 = x3 + zm;
-        y3 = func(x3);
-
-    } while (abs(zm) >= e && it <= 100);
-
-    return x3;
+    std::cout << "-------------------------------------------------------" << std::endl;
 }
 
 template<class T>
-T calculateH(int a, int b, int m)
+std::vector<T> FPR(T x, const std::vector<T> &y, std::vector<T> &F)
 {
-    return (b - a) / static_cast<T>(m);
+    F[0] = 2 * y[0] + (y[1] + exp(x)) / exp(x) - 4 * x;
+    F[1] = 2 * x * y[1] / y[0];
+
+    return F;
 }
 
-template<class T, class F>
-void fillChart(QChartView* chartView, F func, int a, int b, int m)
+template<class T>
+void OUT(T x, const std::vector<T> &y)
 {
-    auto chart = new QChart();
-    auto series = new QLineSeries();
+    std::cout << std::setprecision(4) << std::fixed
+        << "x = " << x
+        << " y1 = " << y[0]
+        << " u1 = " << 2 * x
+        << " d1 = " << 2 * x - y[0]
+        << " y2 = " << y[1]
+        << " u2 = " << exp(x)
+        << " d2 = " << exp(x) - y[1]
+        << std::endl;
+}
 
-    T h = calculateH<double>(a, b, m);
-    for(T x = a; x <= b; x+=h)
-        series->append(x, func(x));
+template<class T>
+void MainWindow::fillDeltaChart()
+{
+    auto series = new QLineSeries();
+    auto chart = new QChart();
+    ui->deltaChartView->setChart(chart);
+
+    T d, dMax;
+    T h;
+    int i, nx = 10;
+    std::vector<T> y(2), u(2);
+
+    u[0] = 2 * b;
+    u[1] = exp(static_cast<T>(b));
+
+    do
+    {
+        h = (b - a) / nx;
+
+        y[0] = 2 * a;
+        y[1] = exp(static_cast<T>(a));
+
+        calculateM5<T>(a, b, nx, 2, y, FPR<T>, OUT<T>);
+
+        dMax = 0;
+        for (i = 0; i < y.size(); i++)
+        {
+            d = abs(u[i] - y[i]);
+            dMax = std::max(d, dMax);
+        }
+
+        series->append(nx, dMax);
+
+        nx *= 2;
+    } while (dMax > e);
+
+    ui->hText->setText(std::to_string(nx / 2).c_str());
+    ui->eText->setText(std::to_string(e).c_str());
 
     chart->addSeries(series);
     chart->createDefaultAxes();
-
-    chartView->setChart(chart);
+    chart->legend()->hide();
 }
 
-double func(double x)
+void MainWindow::nxChanged(const QString& nxText)
 {
-    return sqrt(x) - pow(cos(x), 2) - 2;
+    int nx = nxText.toInt();
+    auto y1Series = new QLineSeries();
+    auto y2Series = new QLineSeries();
+    auto u1Series = new QLineSeries();
+    auto u2Series = new QLineSeries();
+    std::vector<double> y(2);
+
+    auto OUTToChart = [&](double x, const std::vector<double>& y) -> void
+    {
+        OUT(x, y);
+
+        y1Series->append(x, y[0]);
+        y2Series->append(x, y[1]);
+
+        u1Series->append(x, 2 * x);
+        u2Series->append(x, exp(x));
+    };
+
+    y[0] = 2 * a;
+    y[1] = exp(static_cast<double>(a));
+
+    calculateM5<double>(a, b, nx, 2, y, FPR<double>, OUTToChart);
+
+    ui->yChartView->chart()->removeAllSeries();
+
+    y1Series->setName("y1");
+    y2Series->setName("y2");
+    u1Series->setName("u1");
+    u2Series->setName("u2");
+    
+    ui->yChartView->chart()->addSeries(y1Series);
+    ui->yChartView->chart()->addSeries(y2Series);
+    ui->yChartView->chart()->addSeries(u1Series);
+    ui->yChartView->chart()->addSeries(u2Series);
+
+    ui->yChartView->chart()->createDefaultAxes();
 }
+
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -86,41 +160,17 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-    fillChart<double>(ui->chartView, func, a, b, m);
-    connect(ui->computeButton, &QToolButton::pressed, this, &MainWindow::computeButton);
+    fillDeltaChart<double>();
 
-    auto validator = new QDoubleValidator(a, b, 10);
-    QLocale locale(QLocale::English);
-    validator->setLocale(locale);
-    ui->x0Text->setValidator(validator);
+    auto validator = new QIntValidator(10, 1000);
+    ui->nxText->setValidator(validator);
+
+    ui->yChartView->setChart(new QChart());
+
+    connect(ui->nxText, &QLineEdit::textChanged, this, &MainWindow::nxChanged);
 }
 
 MainWindow::~MainWindow()
 {
     delete ui;
 }
-
-void MainWindow::computeButton()
-{
-    try
-    {
-        QString x0Text = ui->x0Text->text();
-        ui->x0Text->setText("");
-
-        int it;
-        double z = calculateMG(x0Text.toDouble(), calculateH<double>(a, b, m), e, it, func);
-
-        QString resultText;
-        results.insert(z);
-        for (auto z : results)
-            resultText.append(std::to_string(z).c_str() + QString("; "));
-
-        ui->itText->setText(std::to_string(it).c_str());
-        ui->resultText->setText(resultText);
-    }
-    catch (const std::exception& /*ex*/)
-    {
-        ui->x0Text->setPlaceholderText( QString::fromStdWString(L"Парабола в данной точке не имеет пересечений с осью Ox") );
-    }
-}
-

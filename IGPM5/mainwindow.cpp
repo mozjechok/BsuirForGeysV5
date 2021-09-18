@@ -4,53 +4,58 @@
 #include <QtCharts/QChart>
 #include <QtCharts/QLineSeries>
 
-template<class T, class F>
-T calculateMG(T x0, T h, T e, int& it, F func)
+template<class T, class F, class F1>
+T calculateMP3(T x0, T h, T e, int& it, F func, F1 derievedFunc)
 {
-    T x1 = x0 - h, x2 = x0, x3 = x0 + h;
-    T y1 = func(x1), y2 = func(x2), y3 = func(x3);
-    T z1, z2, r, d, p, q, D, zm1, zm2, zm;
+    T x1 = x0, x2;
+    T y1, y2;
+    T z1, r, d1, d2, q, p, zm, sqr;
+
+    d1 = derievedFunc(x1);
+    if (d1 > 0)
+        h *= -1;
+
+    x2 = x1 + h;
+    d2 = derievedFunc(x2);
+
+    if ((d2 - d1) / h < 0)
+        throw std::exception();
+
+    y1 = func(x1);
+    y2 = func(x2);
 
     it = 0;
     do
     {
         it++;
 
-        z1 = x1 - x3;
-        z2 = x2 - x3;
+        z1 = x1 - x2;
+        p = (d1 - d2 - 2.0 * (y1 - y2 - d2 * z1) / z1) / (z1 * z1);
+        q = (d2 - d1 + 3.0 * (y1 - y2 - d2 * z1) / z1) / z1;
 
-        r = y3;
-        d = z1 * z2 * (z1 - z2);
-        p = ((y1 - y3) * z2 - (y2 - y3) * z1) / d;
-        q = -((y1 - y3) * z2 * z2 - (y2 - y3) * z1 * z1) / d;
+        r = d2;
 
-        if (q * q - 4 * p * r < 0)
-            throw std::exception();
-
-        D = sqrt(q * q - 4 * p * r);
-        zm1 = (-q + D) / (2 * p);
-        zm2 = (-q - D) / (2 * p);
-        
-        if (abs(zm1) > abs(zm2))
+        sqr = q * q - 3.0 * p * r;
+        if (sqr < 0)
         {
-            zm = zm2;
+            zm = -q / (3.0 * p);
         }
         else
         {
-            zm = zm1;
+            zm = (-q + sqrt(sqr)) / (3.0 * p);
         }
 
         x1 = x2;
-        x2 = x3;
         y1 = y2;
-        y2 = y3;
+        d1 = d2;
 
-        x3 = x3 + zm;
-        y3 = func(x3);
+        x2 += zm;
+        y2 = func(x2);
+        d2 = derievedFunc(x2);
 
-    } while (abs(zm) >= e && it <= 100);
+    } while (abs(zm) >= e);
 
-    return x3;
+    return x2;
 }
 
 template<class T>
@@ -65,34 +70,41 @@ void fillChart(QChartView* chartView, F func, int a, int b, int m)
     auto chart = new QChart();
     auto series = new QLineSeries();
 
-    T h = calculateH<double>(a, b, m);
-    for(T x = a; x <= b; x+=h)
+    T h = calculateH<long double>(a, b, m);
+    for (T x = a; x <= b; x += h)
         series->append(x, func(x));
 
     chart->addSeries(series);
     chart->createDefaultAxes();
 
+    chartView->setRenderHint(QPainter::Antialiasing);
     chartView->setChart(chart);
 }
 
-double func(double x)
+long double func(long double x)
 {
-    return sqrt(x) - pow(cos(x), 2) - 2;
+    return sqrt(x) - cos(x);
 }
 
-MainWindow::MainWindow(QWidget *parent)
+long double derievedFunc(long double x)
+{
+    return 0.5 / sqrt(x) + sin(x);
+}
+
+MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
 
-    fillChart<double>(ui->chartView, func, a, b, m);
+    fillChart<long double>(ui->chartView, func, a, b, m);
     connect(ui->computeButton, &QToolButton::pressed, this, &MainWindow::computeButton);
 
     auto validator = new QDoubleValidator(a, b, 10);
     QLocale locale(QLocale::English);
     validator->setLocale(locale);
     ui->x0Text->setValidator(validator);
+    ui->hText->setValidator(validator);
 }
 
 MainWindow::~MainWindow()
@@ -105,10 +117,19 @@ void MainWindow::computeButton()
     try
     {
         QString x0Text = ui->x0Text->text();
-        ui->x0Text->setText("");
+        QString hText = ui->hText->text();
 
         int it;
-        double z = calculateMG(x0Text.toDouble(), calculateH<double>(a, b, m), e, it, func);
+        long double z = calculateMP3(x0Text.toDouble(), hText.toDouble(), e, it, func, derievedFunc);
+
+        if (results.find(z) == results.end())
+        {
+            auto series = new QScatterSeries();
+            series->setMarkerShape(QScatterSeries::MarkerShape::MarkerShapeCircle);
+            ui->chartView->chart()->addSeries(series);
+            series->append(z, func(z));
+            ui->chartView->chart()->createDefaultAxes();
+        }
 
         QString resultText;
         results.insert(z);
@@ -120,7 +141,7 @@ void MainWindow::computeButton()
     }
     catch (const std::exception& /*ex*/)
     {
-        ui->x0Text->setPlaceholderText( QString::fromStdWString(L"Парабола в данной точке не имеет пересечений с осью Ox") );
+        ui->itText->setText(QString::fromStdWString(L"Парабола в данной точке не имеет пересечений с осью Ox"));
     }
 }
 
